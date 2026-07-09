@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>封神觉醒</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:#f5f0eb;color:#2c2416;display:flex;min-height:100vh}
+#sidebar{width:260px;background:#2c2416;color:#d4c5a9;padding:20px 0;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;z-index:10}
+#sidebar h2{padding:0 20px 16px;font-size:18px;border-bottom:1px solid #4a3f2f;margin-bottom:8px;color:#e8d5b7}
+#sidebar .ch-list{list-style:none}
+.ch-list li{cursor:pointer;padding:10px 20px;font-size:14px;transition:all .15s;border-left:3px solid transparent}
+.ch-list li:hover{background:#3a3025;border-left-color:#c9a96e}
+.ch-list li.active{background:#4a3f2f;border-left-color:#e8c97a;color:#fff}
+#main{margin-left:260px;flex:1;padding:40px 60px;max-width:900px}
+#content{line-height:2;font-size:17px}
+#content h1{font-size:24px;margin:32px 0 20px;color:#1a1008;border-bottom:2px solid #c9a96e;padding-bottom:8px}
+#content h2{font-size:20px;margin:28px 0 14px;color:#3a2510}
+#content p{margin:14px 0;text-indent:2em}
+#content hr{border:none;border-top:1px dashed #c9a96e;margin:24px 0}
+#content blockquote{margin:16px 0;padding:12px 20px;background:#ede4d3;border-left:4px solid #c9a96e;font-size:15px;color:#5a4a30}
+#content strong{color:#8b6914}
+.nav{display:flex;justify-content:space-between;margin-top:40px;padding-top:20px;border-top:1px solid #ddd}
+.nav button{background:#2c2416;color:#e8d5b7;border:none;padding:10px 24px;font-size:14px;cursor:pointer;border-radius:4px;transition:all .15s}
+.nav button:hover{background:#4a3f2f}
+.nav button:disabled{opacity:.3;cursor:default}
+#chapterTitle{font-size:22px;color:#1a1008;margin-bottom:10px;font-weight:bold}
+.chNum{font-size:13px;color:#8a7a60;margin-bottom:24px}
+#loading{text-align:center;padding:60px 0;color:#8a7a60}
+.spinner{display:inline-block;width:24px;height:24px;border:3px solid #ddd;border-top-color:#c9a96e;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:768px){#sidebar{width:100%;position:relative;height:auto;max-height:200px}#main{margin-left:0;padding:20px}}
+</style>
+</head>
+<body>
+<nav id="sidebar"><h2>封神觉醒</h2><ul class="ch-list" id="chList"></ul></nav>
+<main id="main">
+  <div id="chapterTitle"></div><div class="chNum" id="chNum"></div>
+  <div id="content"><div id="loading"><div class="spinner"></div><p>加载中...</p></div></div>
+  <div class="nav">
+    <button id="prevBtn" disabled>上一章</button>
+    <button id="nextBtn">下一章</button>
+  </div>
+</main>
+<script>
+(function(){
+var chapters=[],currentIdx=0;
+var chList=document.getElementById('chList'),content=document.getElementById('content'),
+    chapterTitle=document.getElementById('chapterTitle'),chNum=document.getElementById('chNum'),
+    prevBtn=document.getElementById('prevBtn'),nextBtn=document.getElementById('nextBtn');
+function parseMD(text){
+  var lines=text.split('\n'),out=[],buf=[],inBq=false;
+  function flush(){
+    if(!buf.length)return;
+    var s=buf.join('\n');buf=[];
+    s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+    out.push(inBq?'<blockquote>'+s+'</blockquote>':'<p>'+s+'</p>');
+    inBq=false;
+  }
+  for(var i=0;i<lines.length;i++){
+    var l=lines[i];
+    if(/^#{1,2}\s/.test(l)){flush();var h=l.replace(/^#{1,2}\s+/,'');out.push(/^##/.test(l)?'<h2>'+h+'</h2>':'<h1>'+h+'</h1>');}
+    else if(/^---\s*$/.test(l)){flush();out.push('<hr>');}
+    else if(/^>\s/.test(l)){if(!inBq){flush();inBq=true;}buf.push(l.replace(/^>\s/,''));}
+    else if(/^\s*$/.test(l)){flush();}
+    else{if(inBq){flush();}buf.push(l.trim());}
+  }
+  flush();
+  return out.join('');
+}
+function extractTitle(text){
+  var m=text.match(/^第[一二三四五六七八九十百千\d]+章\s*(.+)/);
+  return m?m[0]:'';
+}
+function load(idx){
+  if(idx<0||idx>=chapters.length)return;
+  currentIdx=idx;
+  var ch=chapters[idx];
+  chapterTitle.textContent='';chNum.textContent='';
+  content.innerHTML='<div id="loading"><div class="spinner"></div><p>加载中...</p></div>';
+  prevBtn.disabled=true;nextBtn.disabled=true;
+  var xhr=new XMLHttpRequest();
+  xhr.open('GET','chapters/'+encodeURI(ch.file),true);
+  xhr.onload=function(){
+    if(xhr.status>=200&&xhr.status<400){
+      var md=xhr.responseText;
+      chapterTitle.textContent=extractTitle(md);
+      chNum.textContent='第'+(idx+1)+'章 / 共'+chapters.length+'章';
+      content.innerHTML=parseMD(md);
+      prevBtn.disabled=idx===0;nextBtn.disabled=idx===chapters.length-1;
+    }else{content.innerHTML='<p style="color:#a00">加载失败，请刷新重试</p>';prevBtn.disabled=false;nextBtn.disabled=false;}
+  };
+  xhr.onerror=function(){content.innerHTML='<p style="color:#a00">网络错误</p>';prevBtn.disabled=false;nextBtn.disabled=false;};
+  xhr.send();
+  chList.querySelectorAll('li').forEach(function(li,i){li.classList.toggle('active',i===idx);});
+}
+function init(){
+  chapters.forEach(function(ch,i){
+    var li=document.createElement('li');li.textContent='第'+(i+1)+'章';
+    li.onclick=function(){load(i);};li.title=ch.file.replace(/\.md$/,'');
+    chList.appendChild(li);
+  });
+}
+prevBtn.onclick=function(){load(currentIdx-1);};
+nextBtn.onclick=function(){load(currentIdx+1);};
+var xhr=new XMLHttpRequest();
+xhr.open('GET','chapters.json',true);
+xhr.onload=function(){
+  if(xhr.status>=200&&xhr.status<400){
+    var m=JSON.parse(xhr.responseText);chapters=m.chapters||[];
+    document.title=m.title||'封神觉醒';
+    if(!chapters.length){content.innerHTML='<p>暂无章节</p>';return;}
+    init();load(0);
+  }else{content.innerHTML='<p style="color:#a00">加载失败</p>';}
+};
+xhr.onerror=function(){content.innerHTML='<p style="color:#a00">网络错误</p>';};
+xhr.send();
+})();
+</script>
+</body>
+</html>
